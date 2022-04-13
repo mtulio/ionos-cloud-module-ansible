@@ -1,0 +1,12 @@
+- hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: List VM Autoscaling Groups
+      vm_autoscaling_group_info:
+      register: vm_autoscaling_groups_response
+
+    - name: Show VM Autoscaling Groups
+      debug:
+        var: vm_autoscaling_groups_response.result
