@@ -252,6 +252,8 @@ def volume_object_from_dict(volume_dict):
         user_data=volume_dict.get('user_data'),
         bus=volume_dict.get('bus'),
         image_password=volume_dict.get('image_password'),
+        image_alias=volume_dict.get('image_alias'),
+        backupunit_id=volume_dict.get('backupunit_id'),
     )
 
 def wait_vm_autoscaling_group_actions_finished(vm_autoscaling_client, vm_autoscaling_group):
@@ -290,7 +292,7 @@ def create_vm_autoscaling_group(module, vm_autoscaling_client, cloudapi_client):
 
     vm_autoscaling_group_properties = ionoscloud_vm_autoscaling.GroupProperties(
         name=module.params.get('name'),
-        datacenter={ 'id': module.params.get('datacenter') },
+        datacenter={ 'id': datacenter_id },
         location=module.params.get('location'),
         max_replica_count=module.params.get('max_replica_count'),
         min_replica_count=module.params.get('min_replica_count'),
