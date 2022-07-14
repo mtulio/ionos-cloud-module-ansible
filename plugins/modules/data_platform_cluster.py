@@ -9,12 +9,9 @@ import yaml
 HAS_SDK = True
 
 try:
-    import ionoscloud
-    from ionoscloud import __version__ as sdk_version
-    from ionoscloud.models import KubernetesCluster, KubernetesClusterProperties, KubernetesClusterForPut, \
-        KubernetesClusterPropertiesForPut, S3Bucket
-    from ionoscloud.rest import ApiException
-    from ionoscloud import ApiClient
+    import ionoscloud_dsaas
+    from ionoscloud_dsaas import __version__ as sdk_version
+    from ionoscloud_dsaas import ApiClient
 except ImportError:
     HAS_SDK = False
 
@@ -24,63 +21,48 @@ ANSIBLE_METADATA = {
     'status': ['preview'],
     'supported_by': 'community',
 }
-USER_AGENT = 'ansible-module/%s_ionos-cloud-sdk-python/%s' % ( __version__, sdk_version)
-DOC_DIRECTORY = 'managed-kubernetes'
+DSAAS_USER_AGENT = 'ansible-module/%s_ionos-cloud-sdk-python-dsaas/%s' % ( __version__, sdk_version)
+DOC_DIRECTORY = 'dsaas'
 STATES = ['present', 'absent', 'update']
-OBJECT_NAME = 'K8s Cluster'
+OBJECT_NAME = 'Data Platform Cluster'
 
 OPTIONS = {
     'cluster_name': {
-        'description': ['The name of the K8s cluster.'],
+        'description': [
+            'The name of your cluster. Must be 63 characters or less and must be empty or '
+            'begin and end with an alphanumeric character ([a-z0-9A-Z]) with dashes (-), '
+            'underscores (_), dots (.), and alphanumerics between.',
+        ],
         'available': ['present', 'update'],
         'required': ['present', 'update'],
         'type': 'str',
     },
-    'k8s_cluster_id': {
-        'description': ['The ID of the K8s cluster.'],
+    'data_platform_cluster_id': {
+        'description': ['The ID of the Data Platform cluster.'],
         'available': ['update', 'absent'],
         'required': ['update', 'absent'],
         'type': 'str',
     },
-    'k8s_version': {
-        'description': [
-            "The kubernetes version in which a cluster is running. This imposes restrictions "
-            "on what kubernetes versions can be run in a cluster's nodepools. Additionally, not "
-            "all kubernetes versions are viable upgrade targets for all prior versions.",
-        ],
+    'data_platform_version': {
+        'description': ['The version of the DataPlatform.'],
         'available': ['present', 'update'],
         'required': ['update'],
         'type': 'str',
     },
+    'datacenter_id': {
+        'description': ['The UUID of the virtual data center (VDC) the cluster is provisioned.'],
+        'available': ['update', 'present'],
+        'required': ['present'],
+        'type': 'str',
+    },
     'maintenance_window': {
         'description': [
-            "The maintenance window is used for updating the cluster's control plane and for "
-            "upgrading the cluster's K8s version. If no value is given, one is chosen dynamically, "
-            "so there is no fixed default.",
+            'Starting time of a weekly 4 hour-long window, during which '
+            'maintenance might occur in hh:mm:ss format',
         ],
         'available': ['present', 'update'],
         'required': ['update'],
         'type': 'dict',
-    },
-    'api_subnet_allow_list': {
-        'description': [
-            "Access to the K8s API server is restricted to these CIDRs. Cluster-internal traffic is "
-            "not affected by this restriction. If no allowlist is specified, access is not restricted. "
-            "If an IP without subnet mask is provided, the default value will be used: 32 for IPv4 and "
-            "128 for IPv6.",
-        ],
-        'available': ['present', 'update'],
-        'type': 'list',
-        'elements': 'str',
-    },
-    's3_buckets_param': {
-        'description': [
-            "List of S3 bucket configured for K8s usage. For now it contains only an S3 bucket used to "
-            "store K8s API audit logs",
-        ],
-        'available': ['present', 'update'],
-        'type': 'list',
-        'elements': 'str',
     },
     'api_url': {
         'description': ['The Ionos API base URL.'],
@@ -144,41 +126,41 @@ def transform_for_documentation(val):
 
 DOCUMENTATION = '''
 ---
-module: k8s_cluster
-short_description: Create or destroy a K8s Cluster.
+module: data_platform_cluster
+short_description: Create or destroy a Data Platform Cluster.
 description:
-     - This is a simple module that supports creating or removing K8s Clusters.
+     - This is a simple module that supports creating or removing Data Platform Clusters.
        This module has a dependency on ionoscloud >= 6.0.2
 version_added: "2.0"
 options:
 ''' + '  ' + yaml.dump(yaml.safe_load(str({k: transform_for_documentation(v) for k, v in copy.deepcopy(OPTIONS).items()})), default_flow_style=False).replace('\n', '\n  ') + '''
 requirements:
     - "python >= 2.6"
-    - "ionoscloud >= 6.0.2"
+    - "ionoscloud_dsaas >= 1.0.0"
 author:
     - "IONOS Cloud SDK Team <sdk-tooling@ionos.com>"
 '''
 
 EXAMPLE_PER_STATE = {
   'present' : '''
-  - name: Create k8s cluster
-    k8s_cluster:
+  - name: Create Data Platform cluster
+    data_platform_cluster:
       name: "{{ cluster_name }}"
   ''',
   'update' : '''
-  - name: Update k8s cluster
-    k8s_cluster:
-      k8s_cluster_id: "89a5aeb0-d6c1-4cef-8f6b-2b9866d85850"
+  - name: Update Data Platform cluster
+    data_platform_cluster:
+      data_platform_cluster_id: "89a5aeb0-d6c1-4cef-8f6b-2b9866d85850"
       maintenance_window:
         day_of_the_week: 'Tuesday'
         time: '13:03:00'
-      k8s_version: 1.17.8
+      data_platform_version: 1.17.8
       state: update
   ''',
   'absent' : '''
-  - name: Delete k8s cluster
-    k8s_cluster:
-      k8s_cluster_id: "a9b56a4b-8033-4f1a-a59d-cfea86cfe40b"
+  - name: Delete Data Platform cluster
+    data_platform_cluster:
+      data_platform_cluster_id: "a9b56a4b-8033-4f1a-a59d-cfea86cfe40b"
       state: absent
   ''',
 }
@@ -235,22 +217,21 @@ def _get_request_id(headers):
                         "header 'location': '{location}'".format(location=headers['location']))
 
 
-def create_k8s_cluster(module, client):
-    cluster_name = module.params.get('cluster_name')
-    k8s_version = module.params.get('k8s_version')
+def create_data_platform_cluster(module, client):
+    cluster_name = module.params.get('data_platform_cluster_name')
+    data_platform_version = module.params.get('data_platform_version')
     maintenance = module.params.get('maintenance_window')
+    datacenter_id = module.params.get('datacenter_id')
     wait = module.params.get('wait')
-    api_subnet_allow_list = module.params.get('api_subnet_allow_list')
-    s3_buckets = list(map(lambda bucket_name: S3Bucket(name=bucket_name))) if module.params.get('s3_buckets') else None
 
     maintenance_window = None
     if maintenance:
         maintenance_window = dict(maintenance)
         maintenance_window['dayOfTheWeek'] = maintenance_window.pop('day_of_the_week')
 
-    k8s_server = ionoscloud.KubernetesApi(api_client=client)
+    dsaas_cluster_server = ionoscloud_dsaas.DataPlatformClusterApi(api_client=client)
 
-    existing_cluster = get_resource(module, k8s_server.k8s_get(depth=2), cluster_name)
+    existing_cluster = get_resource(module, dsaas_cluster_server.get_clusters(), cluster_name)
 
     if module.check_mode:
         module.exit_json(changed=False)
@@ -264,24 +245,23 @@ def create_k8s_cluster(module, client):
         }
 
     try:
-        k8s_cluster_properties = KubernetesClusterProperties(
+        dsaas_cluster_properties = ionoscloud_dsaas.CreateClusterProperties(
             name=cluster_name,
-            k8s_version=k8s_version,
+            data_platform_version=data_platform_version,
+            datacenter_id=datacenter_id,
             maintenance_window=maintenance_window,
-            api_subnet_allow_list=api_subnet_allow_list,
-            s3_buckets=s3_buckets,
         )
-        k8s_cluster = KubernetesCluster(properties=k8s_cluster_properties)
+        dsaas_cluster = ionoscloud_dsaas.CreateClusterRequest(properties=dsaas_cluster_properties)
 
-        k8s_response = k8s_server.k8s_post(kubernetes_cluster=k8s_cluster)
+        dsaas_cluster_response = dsaas_cluster_server.create_cluster(create_cluster_request=dsaas_cluster)
 
         if wait:
             client.wait_for(
-                fn_request=lambda: k8s_server.k8s_get(depth=2),
+                fn_request=lambda: dsaas_cluster_server.get_clusters(),
                 fn_check=lambda r: list(filter(
                     lambda e: e.properties.name == cluster_name,
                     r.items
-                ))[0].metadata.state == 'ACTIVE',
+                ))[0].metadata.state == 'AVAILABLE',
                 scaleup=10000
             )
 
@@ -289,7 +269,7 @@ def create_k8s_cluster(module, client):
             'changed': True,
             'failed': False,
             'action': 'create',
-            'cluster': k8s_response.to_dict()
+            'data_platform_cluster': dsaas_cluster_response.to_dict()
         }
 
         return results
@@ -299,27 +279,29 @@ def create_k8s_cluster(module, client):
             msg="failed to create the k8s cluster: %s" % to_native(e))
 
 
-def delete_k8s_cluster(module, client):
-    k8s_cluster_id = module.params.get('k8s_cluster_id')
+def delete_data_platform_cluster(module, client):
+    cluster_id = module.params.get('data_platform_cluster_id')
+    cluster_name = module.params.get('cluster_name')
     wait = module.params.get('wait')
-    wait_timeout = module.params.get('wait_timeout')
     changed = False
 
-    k8s_server = ionoscloud.KubernetesApi(api_client=client)
-    k8s_cluster = get_resource(module, k8s_server.k8s_get(depth=2), k8s_cluster_id)
+    dsaas_cluster_server = ionoscloud_dsaas.DataPlatformClusterApi(api_client=client)
+    data_platform_clusters = dsaas_cluster_server.get_clusters()
 
-    if not k8s_cluster:
+    dsaas_cluster = get_resource(module, data_platform_clusters, cluster_id if cluster_id else cluster_name)
+
+    if not dsaas_cluster:
         module.exit_json(changed=False)
 
     try:
-        if k8s_cluster.metadata.state != 'DESTROYING':
-            k8s_server.k8s_delete_with_http_info(k8s_cluster_id=k8s_cluster_id)
+        if dsaas_cluster.metadata.state == 'AVAILABLE':
+            dsaas_cluster_server.delete_cluster(cluster_id=dsaas_cluster.id)
 
         if wait:
             client.wait_for(
-                fn_request=lambda: k8s_server.k8s_get(depth=1),
+                fn_request=lambda: dsaas_cluster_server.get_clusters(),
                 fn_check=lambda r: len(list(filter(
-                    lambda e: e.id == k8s_cluster_id,
+                    lambda e: e.id == dsaas_cluster.id,
                     r.items
                 ))) < 1,
                 console_print='.',
@@ -328,12 +310,12 @@ def delete_k8s_cluster(module, client):
         changed = True
     except Exception as e:
         module.fail_json(
-            msg="failed to delete the k8s cluster: %s" % to_native(e))
+            msg="failed to delete the Data Platform cluster: %s" % to_native(e))
 
     return {
         'action': 'delete',
         'changed': changed,
-        'id': k8s_cluster_id
+        'id': dsaas_cluster.id,
     }
 
 
@@ -351,7 +333,7 @@ def update_k8s_cluster(module, client):
     k8s_server = ionoscloud.KubernetesApi(api_client=client)
     k8s_response = None
     
-    existing_cluster_id_by_name = get_resource_id(module, k8s_server.k8s_get(depth=2), cluster_name)
+    existing_cluster_id_by_name = get_resource_id(module, k8s_server.k8s_get(), cluster_name)
 
     if k8s_cluster_id is not None and existing_cluster_id_by_name is not None and existing_cluster_id_by_name != k8s_cluster_id:
             module.fail_json(msg='failed to update the {}: Another resource with the desired name ({}) exists'.format(OBJECT_NAME, cluster_name))
@@ -371,7 +353,7 @@ def update_k8s_cluster(module, client):
 
         if module.params.get('wait'):
             client.wait_for(
-                fn_request=lambda: k8s_server.k8s_get(depth=2),
+                fn_request=lambda: k8s_server.k8s_get(),
                 fn_check=lambda r: list(filter(
                     lambda e: e.properties.name == cluster_name,
                     r.items
@@ -465,20 +447,20 @@ def main():
     module = AnsibleModule(argument_spec=get_module_arguments(), supports_check_mode=True)
 
     if not HAS_SDK:
-        module.fail_json(msg='ionoscloud is required for this module, run `pip install ionoscloud`')
+        module.fail_json(msg='ionoscloud_dsaas is required for this module, run `pip install ionoscloud_dsaas`')
 
     state = module.params.get('state')
-    with ApiClient(get_sdk_config(module, ionoscloud)) as api_client:
-        api_client.user_agent = USER_AGENT
+    with ApiClient(get_sdk_config(module, ionoscloud_dsaas)) as api_client:
+        api_client.user_agent = DSAAS_USER_AGENT
         check_required_arguments(module, state, OBJECT_NAME)
 
         try:
             if state == 'present':
-                module.exit_json(**create_k8s_cluster(module, api_client))
+                module.exit_json(**create_data_platform_cluster(module, api_client))
             elif state == 'absent':
-                module.exit_json(**delete_k8s_cluster(module, api_client))
+                module.exit_json(**delete_data_platform_cluster(module, api_client))
             elif state == 'update':
-                module.exit_json(**update_k8s_cluster(module, api_client))
+                module.exit_json(**update_data_platform_cluster(module, api_client))
         except Exception as e:
             module.fail_json(msg='failed to set {object_name} state {state}: {error}'.format(object_name=OBJECT_NAME, error=to_native(e), state=state))
 
