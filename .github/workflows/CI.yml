@@ -115,6 +115,8 @@ jobs:
             keywords: "nat"
           - namespace: networkloadbalancer
             keywords: "network_load_balancer, network"
+          - namespace: data-platform
+            keywords: "data_platform, data-platform"
 
     env:
       python-version: 3.8.0

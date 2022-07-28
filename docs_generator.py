@@ -96,6 +96,11 @@ modules_to_generate = [
     's3key_info',
     'share',
     'user',
+    'data_platform_cluster',
+    'data_platform_cluster_config',
+    'data_platform_cluster_info',
+    'data_platform_nodepool',
+    'data_platform_nodepool_info',
 ]
 
 for module_name in modules_to_generate:
